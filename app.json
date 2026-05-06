@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "game-app",
-    "slug": "game-app",
+    "slug": "game-anak",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.hadi.gameapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -43,6 +44,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8684a564-1145-4991-a648-c0eca4ef5bc4"
+      }
+    },
+    "owner": "hadiygcls-organization"
   }
 }
