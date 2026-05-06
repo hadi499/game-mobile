@@ -16,6 +16,11 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="counting-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="counting-game-hard" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="schulte-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="schulte-prime-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="memory-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
