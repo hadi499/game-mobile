@@ -1,14 +1,15 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
+import { useSound } from "../hooks/useSound";
 import {
-  Dimensions,
   Modal,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, {
@@ -23,10 +24,8 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
-  ZoomIn
+  ZoomIn,
 } from "react-native-reanimated";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const EMOJIS = ["🍎", "🐶", "🎈", "🚗", "🧸", "🐱", "🍓", "🦋", "⭐", "⚽"];
 const TOTAL_QUESTIONS = 10;
@@ -86,11 +85,13 @@ function OptionButton({
   onPress,
   disabled,
   shakeError,
+  buttonSize, // <-- Menerima ukuran tombol dinamis
 }: {
   value: number;
   onPress: (v: number) => void;
   disabled: boolean;
   shakeError: boolean;
+  buttonSize: number;
 }) {
   const translateX = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -127,7 +128,13 @@ function OptionButton({
       onPress={() => onPress(value)}
       disabled={disabled}
     >
-      <Animated.View style={[styles.optionButton, animatedStyle]}>
+      <Animated.View
+        style={[
+          styles.optionButton,
+          animatedStyle,
+          { width: buttonSize, height: buttonSize }, // <-- Menggunakan ukuran yang sudah dikalkulasi
+        ]}
+      >
         <Text style={styles.optionText}>{value}</Text>
       </Animated.View>
     </TouchableOpacity>
@@ -218,6 +225,9 @@ function FloatingBlob({
 }
 
 export default function CountingGameScreen() {
+  const { width } = useWindowDimensions(); // <-- Mendapatkan ukuran layar secara real-time
+  const { playBenar, playWrong, playTepukTangan } = useSound();
+
   const [question, setQuestion] = useState(() => generateQuestion());
   const [score, setScore] = useState(0);
   const [questionNumber, setQuestionNumber] = useState(1);
@@ -225,7 +235,11 @@ export default function CountingGameScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [shakeError, setShakeError] = useState(false);
-  const [questionKey, setQuestionKey] = useState(0); // for re-triggering emoji enter animations
+  const [questionKey, setQuestionKey] = useState(0);
+
+  // Kalkulasi ukuran tombol maksimal 140px agar aman di Tablet
+  const calculatedButtonSize = Math.floor((width - 72) / 3);
+  const buttonSize = calculatedButtonSize > 140 ? 140 : calculatedButtonSize;
 
   const startGame = useCallback(() => {
     setScore(0);
@@ -242,6 +256,7 @@ export default function CountingGameScreen() {
     if (qNum > TOTAL_QUESTIONS) {
       setIsGameOver(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playTepukTangan();
       return;
     }
     setQuestionNumber(qNum);
@@ -255,18 +270,17 @@ export default function CountingGameScreen() {
       if (showSuccess || showError) return;
 
       if (selected === question.count) {
-        // Correct!
         setScore((s) => s + 1);
         setShowSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playBenar();
       } else {
-        // Wrong
         setShowError(true);
         setShakeError(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playWrong();
       }
 
-      // Both correct and wrong advance after 1 second
       setTimeout(() => {
         setShowSuccess(false);
         setShowError(false);
@@ -297,7 +311,7 @@ export default function CountingGameScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Floating blob decorations */}
+      {/* Floating blob menggunakan variabel width yang dinamis */}
       <FloatingBlob
         color="#FFE0A0"
         size={250}
@@ -308,14 +322,14 @@ export default function CountingGameScreen() {
       <FloatingBlob
         color={COLORS.primarySuperLight}
         size={280}
-        initialX={SCREEN_WIDTH - 120}
+        initialX={width - 120}
         initialY={500}
         delay={2000}
       />
       <FloatingBlob
         color="#D5F5E3"
         size={200}
-        initialX={SCREEN_WIDTH / 2 - 100}
+        initialX={width / 2 - 100}
         initialY={200}
         delay={1000}
       />
@@ -326,89 +340,88 @@ export default function CountingGameScreen() {
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header: Back button + Progress dots */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
+        {/* Wraper pembatas lebar maksimal untuk Tablet (maxWidth: 600) */}
+        <View style={styles.tabletWrapper}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+            </TouchableOpacity>
 
-          <View style={styles.progressContainer}>
-            {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.progressDot,
-                  {
-                    backgroundColor:
-                      i < questionNumber - (showSuccess ? 0 : 1)
-                        ? COLORS.progressActive
-                        : COLORS.progressInactive,
-                  },
-                  i < questionNumber - (showSuccess ? 0 : 1) &&
-                    styles.progressDotActive,
-                ]}
+            <View style={styles.progressContainer}>
+              {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.progressDot,
+                    {
+                      backgroundColor:
+                        i < questionNumber - (showSuccess ? 0 : 1)
+                          ? COLORS.progressActive
+                          : COLORS.progressInactive,
+                    },
+                    i < questionNumber - (showSuccess ? 0 : 1) &&
+                      styles.progressDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.questionTitle}>Berapa jumlahnya?</Text>
+
+            <View style={styles.emojiArea}>
+              {showSuccess ? (
+                <Animated.Text
+                  entering={BounceIn.duration(600)}
+                  style={styles.successStar}
+                >
+                  🌟
+                </Animated.Text>
+              ) : showError ? (
+                <Animated.Text
+                  entering={BounceIn.duration(600)}
+                  style={styles.successStar}
+                >
+                  😢
+                </Animated.Text>
+              ) : (
+                <View style={styles.emojiGrid} key={questionKey}>
+                  {Array.from({ length: question.count }).map((_, i) => (
+                    <EmojiItem
+                      key={`${questionKey}-${i}`}
+                      emoji={question.emoji}
+                      index={i}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.optionsRow}>
+            {question.options.map((opt, i) => (
+              <OptionButton
+                key={`${questionKey}-opt-${opt}`}
+                value={opt}
+                onPress={handleAnswer}
+                disabled={showSuccess || showError}
+                shakeError={shakeError}
+                buttonSize={buttonSize} // <-- Kirim ukuran proporsional ke komponen tombol
               />
             ))}
           </View>
+
+          <Animated.View entering={FadeIn.delay(300)} style={styles.scoreChip}>
+            <Text style={styles.scoreChipText}>
+              ⭐ {score} / {questionNumber - 1 > 0 ? questionNumber - 1 : 0}
+            </Text>
+          </Animated.View>
         </View>
-
-        {/* Question card */}
-        <View style={styles.card}>
-          <Text style={styles.questionTitle}>Berapa jumlahnya?</Text>
-
-          {/* Emoji display area */}
-          <View style={styles.emojiArea}>
-            {showSuccess ? (
-              <Animated.Text
-                entering={BounceIn.duration(600)}
-                style={styles.successStar}
-              >
-                🌟
-              </Animated.Text>
-            ) : showError ? (
-              <Animated.Text
-                entering={BounceIn.duration(600)}
-                style={styles.successStar}
-              >
-                😢
-              </Animated.Text>
-            ) : (
-              <View style={styles.emojiGrid} key={questionKey}>
-                {Array.from({ length: question.count }).map((_, i) => (
-                  <EmojiItem
-                    key={`${questionKey}-${i}`}
-                    emoji={question.emoji}
-                    index={i}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Answer options */}
-        <View style={styles.optionsRow}>
-          {question.options.map((opt, i) => (
-            <OptionButton
-              key={`${questionKey}-opt-${opt}`}
-              value={opt}
-              onPress={handleAnswer}
-              disabled={showSuccess || showError}
-              shakeError={shakeError}
-            />
-          ))}
-        </View>
-
-        {/* Score indicator */}
-        <Animated.View entering={FadeIn.delay(300)} style={styles.scoreChip}>
-          <Text style={styles.scoreChipText}>
-            ⭐ {score} / {questionNumber - 1 > 0 ? questionNumber - 1 : 0}
-          </Text>
-        </Animated.View>
       </ScrollView>
 
       {/* Game Over Modal */}
@@ -431,7 +444,6 @@ export default function CountingGameScreen() {
               <Text style={styles.scoreHighlight}>{TOTAL_QUESTIONS}</Text>
             </Text>
 
-            {/* Score stars visualization */}
             <View style={styles.starsRow}>
               {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => (
                 <Animated.Text
@@ -478,11 +490,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 56,
-    paddingBottom: 24,
+    paddingBottom: 100,
+  },
+  tabletWrapper: {
+    width: "100%",
+    maxWidth: 600, // Batas maksimal layar lebar (Tablet)
+    alignSelf: "center",
     alignItems: "center",
   },
-
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -531,7 +546,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // Question Card
   card: {
     width: "100%",
     backgroundColor: COLORS.white,
@@ -574,7 +588,6 @@ const styles = StyleSheet.create({
     fontSize: 80,
   },
 
-  // Options
   optionsRow: {
     flexDirection: "row",
     gap: 16,
@@ -583,8 +596,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   optionButton: {
-    width: Math.floor((SCREEN_WIDTH - 72) / 3),
-    height: Math.floor((SCREEN_WIDTH - 72) / 3),
+    // width & height dihapus karena dikendalikan dinamis di komponen OptionButton
     backgroundColor: COLORS.white,
     borderRadius: 24,
     borderWidth: 3.5,
@@ -603,7 +615,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  // Score chip
   scoreChip: {
     backgroundColor: COLORS.white,
     paddingHorizontal: 20,
@@ -623,7 +634,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(80, 20, 50, 0.4)",

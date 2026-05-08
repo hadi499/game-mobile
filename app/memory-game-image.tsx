@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSound } from '../hooks/useSound';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   StatusBar,
   ScrollView,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -26,7 +27,7 @@ import Animated, {
   BounceIn,
 } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_CONTENT_WIDTH = 600;
 
 // Instead of emojis, we use local PNG images
 const THEMES: Record<string, { name: string; images: any[]; color: string; colorLight: string; colorDark: string; bg: string; border: string; shadow: string; text: string }> = {
@@ -259,6 +260,7 @@ function FloatingBlob({
 
 export default function MemoryGameImageScreen() {
   const params = useLocalSearchParams<{ theme?: string; count?: string }>();
+  const { playBenar, playWrong, playTepukTangan } = useSound();
   // Default to fruits since we only generated 4 images for now
   const themeKey = params.theme || 'fruits';
   // Maximum cards is 4 since we only have 4 images
@@ -279,6 +281,7 @@ export default function MemoryGameImageScreen() {
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
   const countdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { width: screenWidth } = useWindowDimensions();
 
   const startGame = useCallback(() => {
     const shuffled = shuffleArray(images);
@@ -319,18 +322,22 @@ export default function MemoryGameImageScreen() {
         setMessage(`Benar sekali! Gambar itu ada di nomor ${card.number}.`);
         setIsCorrect(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playTepukTangan();
       } else {
         setMessage(`Salah! Gambar yang benar ada di nomor ${targetCard.number}.`);
         setIsCorrect(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playWrong();
       }
       setGameState('result');
     },
     [gameState, targetCard]
   );
 
-  // 2 columns: screenWidth - outer padding*2 - card padding*2 - gap
-  const cardSize = Math.floor((SCREEN_WIDTH - OUTER_PADDING * 2 - CARD_PADDING * 2 - CARD_GAP) / 2);
+  // 2 columns: effectiveWidth - outer padding*2 - card padding*2 - gap, cap at 180px
+  const effectiveWidth = Math.min(screenWidth, MAX_CONTENT_WIDTH);
+  const rawCardSize = Math.floor((effectiveWidth - OUTER_PADDING * 2 - CARD_PADDING * 2 - CARD_GAP) / 2);
+  const cardSize = Math.min(rawCardSize, 180);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -347,14 +354,14 @@ export default function MemoryGameImageScreen() {
       <FloatingBlob
         color={theme.border}
         size={280}
-        initialX={SCREEN_WIDTH - 120}
+        initialX={screenWidth - 120}
         initialY={500}
         delay={2000}
       />
       <FloatingBlob
         color={theme.shadow}
         size={200}
-        initialX={SCREEN_WIDTH / 2 - 100}
+        initialX={screenWidth / 2 - 100}
         initialY={200}
         delay={1000}
       />
@@ -365,6 +372,8 @@ export default function MemoryGameImageScreen() {
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
+        {/* Tablet wrapper */}
+        <View style={styles.tabletWrapper}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -512,6 +521,7 @@ export default function MemoryGameImageScreen() {
             </View>
           )}
         </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -529,7 +539,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 48,
-    paddingBottom: 20,
+    paddingBottom: 100,
+    alignItems: 'center',
+  },
+  tabletWrapper: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
   },
 
   // Header

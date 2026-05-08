@@ -21,6 +21,7 @@ export default function RootLayout() {
         <Stack.Screen name="schulte-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="schulte-prime-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="memory-game" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="memory-game-image" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSound } from '../hooks/useSound';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Modal,
   StatusBar,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,14 +22,11 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_CONTENT_WIDTH = 600;
 const COLS = 5;
 const GRID_GAP = 5;
 const GRID_PADDING = 8;
 const OUTER_PADDING = 20;
-const CELL_SIZE = Math.floor(
-  (SCREEN_WIDTH - OUTER_PADDING * 2 - GRID_PADDING * 2 - (COLS - 1) * GRID_GAP) / COLS
-);
 
 // 25 bilangan prima pertama
 const PRIMES = [
@@ -72,12 +70,14 @@ function GridCell({
   isWrong,
   onPress,
   disabled,
+  cellSize,
 }: {
   number: number;
   isFound: boolean;
   isWrong: boolean;
   onPress: () => void;
   disabled: boolean;
+  cellSize: number;
 }) {
   const translateX = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -117,8 +117,8 @@ function GridCell({
         style={[
           styles.gridCell,
           {
-            width: CELL_SIZE,
-            height: CELL_SIZE,
+            width: cellSize,
+            height: cellSize,
             backgroundColor: isWrong
               ? COLORS.error
               : isFound
@@ -142,7 +142,7 @@ function GridCell({
                 : isFound
                 ? COLORS.cellFoundText
                 : COLORS.text,
-              fontSize: number >= 10 ? 17 : 20,
+              fontSize: number >= 10 ? 22 : 26,
             },
           ]}
         >
@@ -154,6 +154,7 @@ function GridCell({
 }
 
 export default function SchultePrimeGameScreen() {
+  const { playTepukTangan, playBgm, stopBgm } = useSound();
   const [grid, setGrid] = useState<number[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentTarget, setCurrentTarget] = useState(PRIMES[0]);
@@ -162,29 +163,46 @@ export default function SchultePrimeGameScreen() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [wrongIndex, setWrongIndex] = useState(-1);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { width: screenWidth } = useWindowDimensions();
 
-  const startGame = useCallback(() => {
+  // Kalkulasi cell size dinamis untuk tablet
+  const effectiveWidth = Math.min(screenWidth, MAX_CONTENT_WIDTH);
+  const cellSize = Math.min(
+    Math.floor((effectiveWidth - OUTER_PADDING * 2 - GRID_PADDING * 2 - (COLS - 1) * GRID_GAP) / COLS),
+    70
+  );
+
+  const initGame = useCallback(() => {
     setGrid(shuffleArray(PRIMES));
     setCurrentIndex(0);
     setCurrentTarget(PRIMES[0]);
     setTime(0);
-    setIsPlaying(true);
+    setIsPlaying(false);
     setIsGameOver(false);
     setWrongIndex(-1);
 
     if (timerRef.current) clearInterval(timerRef.current);
+    stopBgm();
+  }, [stopBgm]);
+
+  const startGame = useCallback(() => {
+    setIsPlaying(true);
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTime((t) => t + 1);
     }, 1000);
-  }, []);
+
+    // Start background music
+    playBgm();
+  }, [playBgm]);
 
   useEffect(() => {
-    const timer = setTimeout(startGame, 300);
+    initGame();
     return () => {
-      clearTimeout(timer);
       if (timerRef.current) clearInterval(timerRef.current);
+      stopBgm();
     };
-  }, []);
+  }, [initGame, stopBgm]);
 
   const handleCellClick = useCallback(
     (number: number, index: number) => {
@@ -198,6 +216,8 @@ export default function SchultePrimeGameScreen() {
           setIsGameOver(true);
           setIsPlaying(false);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          stopBgm();
+          playTepukTangan();
         } else {
           setCurrentTarget(PRIMES[nextIdx]);
         }
@@ -235,6 +255,8 @@ export default function SchultePrimeGameScreen() {
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
+        {/* Tablet wrapper */}
+        <View style={styles.tabletWrapper}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -249,7 +271,7 @@ export default function SchultePrimeGameScreen() {
 
           <TouchableOpacity
             style={styles.restartButton}
-            onPress={startGame}
+            onPress={initGame}
             activeOpacity={0.7}
           >
             <Text style={styles.restartIcon}>↻</Text>
@@ -295,11 +317,25 @@ export default function SchultePrimeGameScreen() {
                     isWrong={wrongIndex === index}
                     onPress={() => handleCellClick(number, index)}
                     disabled={!isPlaying}
+                    cellSize={cellSize}
                   />
                 );
               })}
             </View>
           ))}
+          
+          {!isPlaying && !isGameOver && (
+            <View style={styles.startOverlay}>
+              <TouchableOpacity
+                style={styles.startOverlayButton}
+                onPress={startGame}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.startOverlayText}>▶ MULAI</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
         </View>
       </ScrollView>
 
@@ -326,7 +362,7 @@ export default function SchultePrimeGameScreen() {
 
             <TouchableOpacity
               style={styles.playAgainButton}
-              onPress={startGame}
+              onPress={initGame}
               activeOpacity={0.8}
             >
               <Text style={styles.playAgainText}>Main Lagi</Text>
@@ -358,7 +394,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 56,
-    paddingBottom: 24,
+    paddingBottom: 100,
+    alignItems: 'center',
+  },
+  tabletWrapper: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
   },
 
   // Header
@@ -475,6 +516,33 @@ const styles = StyleSheet.create({
     width: 1,
     height: 40,
     backgroundColor: COLORS.cardBorder,
+  },
+
+  // Start Overlay
+  startOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  startOverlayButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 24,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  startOverlayText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: COLORS.white,
+    letterSpacing: 1,
   },
 
   // Grid

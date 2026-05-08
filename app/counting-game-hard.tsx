@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSound } from '../hooks/useSound';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Modal,
   StatusBar,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -26,7 +27,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_CONTENT_WIDTH = 600;
 
 const EMOJIS = ['🍎', '🐶', '🎈', '🚗', '🧸', '🐱', '🍓', '🦋', '⭐', '⚽'];
 const TOTAL_QUESTIONS = 10;
@@ -85,11 +86,13 @@ function OptionButton({
   onPress,
   disabled,
   shakeError,
+  buttonSize,
 }: {
   value: number;
   onPress: (v: number) => void;
   disabled: boolean;
   shakeError: boolean;
+  buttonSize: number;
 }) {
   const translateX = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -126,7 +129,7 @@ function OptionButton({
       onPress={() => onPress(value)}
       disabled={disabled}
     >
-      <Animated.View style={[styles.optionButton, animatedStyle]}>
+      <Animated.View style={[styles.optionButton, animatedStyle, { width: buttonSize, height: buttonSize }]}>
         <Text style={styles.optionText}>{value}</Text>
       </Animated.View>
     </TouchableOpacity>
@@ -217,6 +220,9 @@ function FloatingBlob({
 }
 
 export default function CountingGameHardScreen() {
+  const { width } = useWindowDimensions();
+  const { playBenar, playWrong, playTepukTangan } = useSound();
+
   const [question, setQuestion] = useState(() => generateQuestion());
   const [score, setScore] = useState(0);
   const [questionNumber, setQuestionNumber] = useState(1);
@@ -224,6 +230,11 @@ export default function CountingGameHardScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [shakeError, setShakeError] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
+
+  // Kalkulasi ukuran tombol, dibatasi max 140px untuk Tablet
+  const effectiveWidth = Math.min(width, MAX_CONTENT_WIDTH);
+  const calculatedButtonSize = Math.floor((effectiveWidth - 72) / 3);
+  const buttonSize = calculatedButtonSize > 140 ? 140 : calculatedButtonSize;
 
   const startGame = useCallback(() => {
     setScore(0);
@@ -240,6 +251,7 @@ export default function CountingGameHardScreen() {
     if (nextNum > TOTAL_QUESTIONS) {
       setIsGameOver(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playTepukTangan();
       return;
     }
     setQuestionNumber(nextNum);
@@ -256,6 +268,7 @@ export default function CountingGameHardScreen() {
         setScore((s) => s + 1);
         setShowSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playBenar();
 
         setTimeout(() => {
           setShowSuccess(false);
@@ -264,6 +277,7 @@ export default function CountingGameHardScreen() {
       } else {
         setShakeError(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playWrong();
         setTimeout(() => setShakeError(false), 400);
       }
     },
@@ -301,14 +315,14 @@ export default function CountingGameHardScreen() {
       <FloatingBlob
         color={COLORS.primarySuperLight}
         size={280}
-        initialX={SCREEN_WIDTH - 120}
+        initialX={width - 120}
         initialY={500}
         delay={2000}
       />
       <FloatingBlob
         color="#DDD6FE"
         size={200}
-        initialX={SCREEN_WIDTH / 2 - 100}
+        initialX={width / 2 - 100}
         initialY={200}
         delay={1000}
       />
@@ -319,6 +333,8 @@ export default function CountingGameHardScreen() {
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
+        {/* Wrapper pembatas lebar untuk Tablet */}
+        <View style={styles.tabletWrapper}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -384,6 +400,7 @@ export default function CountingGameHardScreen() {
               onPress={handleAnswer}
               disabled={showSuccess}
               shakeError={shakeError}
+              buttonSize={buttonSize}
             />
           ))}
         </View>
@@ -394,6 +411,7 @@ export default function CountingGameHardScreen() {
             ⭐ {score} / {questionNumber - 1 > 0 ? questionNumber - 1 : 0}
           </Text>
         </Animated.View>
+        </View>
       </ScrollView>
 
       {/* Game Over Modal */}
@@ -464,7 +482,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 56,
-    paddingBottom: 24,
+    paddingBottom: 100,
+    alignItems: 'center',
+  },
+  tabletWrapper: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
     alignItems: 'center',
   },
 
@@ -581,8 +605,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   optionButton: {
-    width: Math.floor((SCREEN_WIDTH - 72) / 3),
-    height: Math.floor((SCREEN_WIDTH - 72) / 3),
+    // width & height dikendalikan dinamis di komponen OptionButton
     backgroundColor: COLORS.white,
     borderRadius: 24,
     borderWidth: 3.5,

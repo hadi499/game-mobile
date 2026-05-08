@@ -1,12 +1,13 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Dimensions,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, {
@@ -22,7 +23,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const MAX_CONTENT_WIDTH = 600;
 
 const COLORS = {
   bg: "#F8F0FF",
@@ -249,18 +250,28 @@ function SplashOverlay() {
 const MODULE_EVALUATION_ID = Date.now();
 
 export default function HomeScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const [refreshing, setRefreshing] = useState(false);
+  const [splashKey, setSplashKey] = useState(MODULE_EVALUATION_ID);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setSplashKey(Date.now());
+    setTimeout(() => setRefreshing(false), 1000);
+  }, []);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Splash loading overlay - will remount and play animation on every Fast Refresh */}
-      <SplashOverlay key={MODULE_EVALUATION_ID} />
+      <SplashOverlay key={splashKey} />
 
       {/* Floating decorations */}
       <FloatingDecor
         emoji="🎈"
         size={40}
-        left={SCREEN_WIDTH - 70}
+        left={screenWidth - 70}
         top={80}
         delay={0}
       />
@@ -268,7 +279,7 @@ export default function HomeScreen() {
       <FloatingDecor
         emoji="🦋"
         size={35}
-        left={SCREEN_WIDTH - 90}
+        left={screenWidth - 90}
         top={320}
         delay={1000}
       />
@@ -277,7 +288,19 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+            title="Tarik untuk refresh..."
+            titleColor={COLORS.textSecondary}
+          />
+        }
       >
+        {/* Tablet wrapper - membatasi lebar konten */}
+        <View style={styles.tabletWrapper}>
         {/* Hero section */}
         <Animated.View
           entering={FadeInDown.delay(100).springify()}
@@ -473,6 +496,7 @@ export default function HomeScreen() {
             index={9}
           />
         </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -486,7 +510,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 100,
+    alignItems: "center",
+  },
+  tabletWrapper: {
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
   },
 
   // Hero
