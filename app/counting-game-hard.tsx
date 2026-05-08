@@ -228,6 +228,7 @@ export default function CountingGameHardScreen() {
   const [questionNumber, setQuestionNumber] = useState(1);
   const [isGameOver, setIsGameOver] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
   const [shakeError, setShakeError] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
 
@@ -241,6 +242,7 @@ export default function CountingGameHardScreen() {
     setQuestionNumber(1);
     setIsGameOver(false);
     setShowSuccess(false);
+    setShowError(false);
     const q = generateQuestion();
     setQuestion(q);
     setQuestionKey((k) => k + 1);
@@ -262,26 +264,28 @@ export default function CountingGameHardScreen() {
 
   const handleAnswer = useCallback(
     (selected: number) => {
-      if (showSuccess) return;
+      if (showSuccess || showError) return;
 
       if (selected === question.count) {
         setScore((s) => s + 1);
         setShowSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         playBenar();
-
-        setTimeout(() => {
-          setShowSuccess(false);
-          nextQuestion();
-        }, 1000);
       } else {
+        setShowError(true);
         setShakeError(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         playWrong();
-        setTimeout(() => setShakeError(false), 400);
       }
+
+      setTimeout(() => {
+        setShowSuccess(false);
+        setShowError(false);
+        setShakeError(false);
+        nextQuestion();
+      }, 1000);
     },
-    [showSuccess, question, nextQuestion]
+    [showSuccess, showError, question, nextQuestion],
   );
 
   const getScoreMessage = () => {
@@ -381,6 +385,13 @@ export default function CountingGameHardScreen() {
               >
                 🌟
               </Animated.Text>
+            ) : showError ? (
+              <Animated.Text
+                entering={BounceIn.duration(600)}
+                style={styles.successStar}
+              >
+                😢
+              </Animated.Text>
             ) : (
               <View style={styles.emojiGrid} key={questionKey}>
                 {Array.from({ length: question.count }).map((_, i) => (
@@ -398,7 +409,7 @@ export default function CountingGameHardScreen() {
               key={`${questionKey}-opt-${opt}`}
               value={opt}
               onPress={handleAnswer}
-              disabled={showSuccess}
+              disabled={showSuccess || showError}
               shakeError={shakeError}
               buttonSize={buttonSize}
             />
